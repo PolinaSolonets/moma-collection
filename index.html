@@ -501,7 +501,7 @@ tbody tr:hover { background: #f0f0f0; cursor: pointer; }
     const loadingEl = document.getElementById('loading');
     try {
       loadingEl.textContent = 'Loading artworks\u2026';
-      const resp = await fetch('Data/artworks.csv');
+      const resp = await fetch('Data/Artworks.csv');
       if (!resp.ok) throw new Error('Failed to load CSV: ' + resp.status);
 
       loadingEl.textContent = 'Parsing 160,000+ artworks\u2026';
