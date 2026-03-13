@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoMA Collection Explorer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #ffffff;
+  line-height: 1.4;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 24px;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* Loading */
+#loading {
+  text-align: center;
+  padding: 120px 24px;
+  color: #595959;
+  font-size: 16px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#app { display: none; }
+
+/* Filter bar */
+.filter-bar { margin-bottom: 16px; }
+
+.search-row { margin-bottom: 12px; }
+
+.search-row input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+.search-row input:focus { border-color: #0066cc; box-shadow: 0 0 0 2px rgba(0,102,204,0.15); }
+.search-row input::placeholder { color: #999999; }
+
+.filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #595959;
+}
+
+.filter-group select,
+.filter-group input[type="number"] {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  outline: none;
+}
+.filter-group select:focus,
+.filter-group input[type="number"]:focus {
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0,102,204,0.15);
+}
+
+.filter-group input[type="number"] { width: 80px; }
+
+.spacer { flex: 1; }
+
+#exportBtn {
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 8px 0;
+  align-self: flex-end;
+}
+#exportBtn:hover { color: #004499; text-decoration: underline; }
+
+/* Stats line */
+.stats-line {
+  font-size: 13px;
+  color: #595959;
+  margin-bottom: 8px;
+  min-height: 18px;
+}
+
+/* Table */
+.table-wrapper { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+thead th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 2px solid #1a1a1a;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+}
+thead th:hover { color: #0066cc; }
+thead th .sort-arrow { color: #0066cc; margin-left: 4px; font-size: 10px; }
+
+tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+tbody tr:nth-child(even) { background: #f7f7f7; }
+tbody tr:hover { background: #f0f0f0; cursor: pointer; }
+
+.col-thumb { width: 52px; }
+.col-title { width: auto; }
+.col-artist { width: 160px; }
+.col-date { width: 72px; }
+.col-medium { width: 180px; }
+.col-class { width: 100px; }
+.col-dept { width: 120px; }
+
+.cell-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 2px;
+  display: block;
+  background: #e0e0e0;
+}
+.thumb-placeholder {
+  width: 40px;
+  height: 40px;
+  background: #e0e0e0;
+  border-radius: 2px;
+}
+
+.date-cell { font-size: 13px; color: #595959; }
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #595959;
+}
+.pagination button {
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.pagination button:hover { color: #004499; text-decoration: underline; }
+.pagination button:disabled { color: #999999; cursor: default; text-decoration: none; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #595959;
+  font-size: 16px;
+}
+.empty-state .hint { color: #999999; font-size: 14px; margin-top: 8px; }
+
+/* Detail modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  max-width: 640px;
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 24px;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #999999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+.modal-close:hover { color: #1a1a1a; background: #f0f0f0; }
+
+.modal-image-wrapper {
+  background: #f7f7f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.modal-image {
+  max-height: 400px;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.detail-field { margin-bottom: 8px; }
+.detail-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #999999;
+  margin-bottom: 2px;
+}
+.detail-value { font-size: 14px; color: #1a1a1a; word-break: break-word; }
+
+.detail-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: #0066cc;
+  text-decoration: none;
+}
+.detail-link:hover { color: #004499; text-decoration: underline; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .filters-row { flex-direction: column; align-items: stretch; }
+  .filter-group select { width: 100%; }
+  .spacer { display: none; }
+  #exportBtn { align-self: flex-start; }
+  .col-class, .col-dept { display: none; }
+  td:nth-child(6), td:nth-child(7),
+  th:nth-child(6), th:nth-child(7) { display: none; }
+  .thumb { width: 32px; height: 32px; }
+  .thumb-placeholder { width: 32px; height: 32px; }
+  .col-thumb { width: 44px; }
+}
+@media (max-width: 480px) {
+  .col-date, .col-medium { display: none; }
+  td:nth-child(4), td:nth-child(5),
+  th:nth-child(4), th:nth-child(5) { display: none; }
+  .col-artist { width: 100px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>MoMA Collection Explorer</h1>
+
+  <div id="loading">Loading artworks&hellip;</div>
+
+  <div id="app">
+    <div class="filter-bar">
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="Search titles, artists, mediums&hellip;">
+      </div>
+      <div class="filters-row">
+        <div class="filter-group">
+          <label for="deptFilter">Department</label>
+          <select id="deptFilter"><option value="">All</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="classFilter">Classification</label>
+          <select id="classFilter"><option value="">All</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="natFilter">Nationality</label>
+          <select id="natFilter"><option value="">All</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="yearFrom">From</label>
+          <input type="number" id="yearFrom" placeholder="Year" min="0" max="2030">
+        </div>
+        <div class="filter-group">
+          <label for="yearTo">To</label>
+          <input type="number" id="yearTo" placeholder="Year" min="0" max="2030">
+        </div>
+        <div class="spacer"></div>
+        <button id="exportBtn">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="stats-line" id="statsLine"></div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-thumb"></th>
+            <th class="col-title" data-col="title">Title <span class="sort-arrow"></span></th>
+            <th class="col-artist" data-col="artist">Artist <span class="sort-arrow"></span></th>
+            <th class="col-date" data-col="date">Date <span class="sort-arrow"></span></th>
+            <th class="col-medium" data-col="medium">Medium <span class="sort-arrow"></span></th>
+            <th class="col-class" data-col="classification">Class <span class="sort-arrow"></span></th>
+            <th class="col-dept" data-col="department">Dept <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+      No artworks match your filters.
+      <div class="hint">Try broadening your search or removing a filter.</div>
+    </div>
+
+    <div class="pagination" id="pagination">
+      <button id="prevBtn">&larr; Prev</button>
+      <span id="pageInfo"></span>
+      <button id="nextBtn">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal" style="display:none;">
+  <div class="modal-card" id="modalCard">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const PAGE_SIZE = 50;
+  const DEBOUNCE_MS = 300;
+
+  let allArtworks = [];
+  let filtered = [];
+  let sortCol = null;
+  let sortAsc = true;
+  let currentPage = 0;
+
+  // --- CSV Parser ---
+  function parseCSV(text) {
+    const rows = [];
+    let i = 0;
+    const len = text.length;
+
+    // skip BOM
+    if (text.charCodeAt(0) === 0xFEFF) i = 1;
+
+    function parseRow() {
+      const fields = [];
+      while (i < len) {
+        if (text[i] === '"') {
+          i++;
+          let val = '';
+          while (i < len) {
+            if (text[i] === '"') {
+              if (i + 1 < len && text[i + 1] === '"') {
+                val += '"';
+                i += 2;
+              } else {
+                i++; // closing quote
+                break;
+              }
+            } else {
+              val += text[i];
+              i++;
+            }
+          }
+          fields.push(val);
+          if (i < len && text[i] === ',') { i++; }
+          else if (i < len && (text[i] === '\n' || text[i] === '\r')) {
+            if (text[i] === '\r' && i + 1 < len && text[i + 1] === '\n') i += 2;
+            else i++;
+            return fields;
+          }
+        } else {
+          let val = '';
+          while (i < len && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') {
+            val += text[i];
+            i++;
+          }
+          fields.push(val);
+          if (i < len && text[i] === ',') { i++; }
+          else {
+            if (i < len && text[i] === '\r' && i + 1 < len && text[i + 1] === '\n') i += 2;
+            else if (i < len) i++;
+            return fields;
+          }
+        }
+      }
+      return fields;
+    }
+
+    // Parse header
+    const headers = parseRow();
+
+    // Parse data rows
+    while (i < len) {
+      if (text[i] === '\n' || text[i] === '\r') { i++; continue; }
+      const row = parseRow();
+      if (row.length > 0) rows.push(row);
+    }
+
+    return { headers, rows };
+  }
+
+  // --- Data Cleaning ---
+  function stripParens(s) {
+    if (!s) return '';
+    const matches = s.match(/\(([^)]*)\)/g);
+    if (!matches) return s.trim();
+    return matches.map(m => m.slice(1, -1)).join(', ');
+  }
+
+  function parseYearMin(dateStr) {
+    if (!dateStr) return null;
+    const m = dateStr.match(/\d{4}/);
+    return m ? parseInt(m[0], 10) : null;
+  }
+
+  function buildArtwork(headers, row) {
+    const obj = {};
+    for (let i = 0; i < headers.length; i++) {
+      obj[headers[i]] = i < row.length ? row[i] : '';
+    }
+
+    // Clean fields
+    obj._nationality = stripParens(obj['Nationality']);
+    obj._gender = stripParens(obj['Gender']);
+    obj._yearMin = parseYearMin(obj['Date']);
+    obj._title = obj['Title'] || '(Untitled)';
+    obj._artist = obj['Artist'] || '';
+    obj._medium = obj['Medium'] || '';
+    obj._search = (obj._title + ' ' + obj._artist + ' ' + obj._medium).toLowerCase();
+
+    return obj;
+  }
+
+  // --- Load Data ---
+  async function loadData() {
+    const loadingEl = document.getElementById('loading');
+    try {
+      loadingEl.textContent = 'Loading artworks\u2026';
+      const resp = await fetch('Data/artworks.csv');
+      if (!resp.ok) throw new Error('Failed to load CSV: ' + resp.status);
+
+      loadingEl.textContent = 'Parsing 160,000+ artworks\u2026';
+      const text = await resp.text();
+
+      // Yield to let the UI update
+      await new Promise(r => setTimeout(r, 0));
+
+      const { headers, rows } = parseCSV(text);
+
+      loadingEl.textContent = 'Processing data\u2026';
+      await new Promise(r => setTimeout(r, 0));
+
+      allArtworks = new Array(rows.length);
+      for (let i = 0; i < rows.length; i++) {
+        allArtworks[i] = buildArtwork(headers, rows[i]);
+      }
+
+      populateFilters();
+      applyFilters();
+
+      loadingEl.style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+    } catch (e) {
+      loadingEl.textContent = 'Error loading data: ' + e.message;
+      loadingEl.style.animation = 'none';
+      console.error(e);
+    }
+  }
+
+  // --- Populate Filter Dropdowns ---
+  function populateFilters() {
+    const depts = new Set();
+    const classes = new Set();
+    const nats = new Set();
+
+    for (const a of allArtworks) {
+      if (a['Department']) depts.add(a['Department']);
+      if (a['Classification']) classes.add(a['Classification']);
+      if (a._nationality) {
+        for (const n of a._nationality.split(', ')) {
+          const t = n.trim();
+          if (t) nats.add(t);
+        }
+      }
+    }
+
+    fillSelect('deptFilter', [...depts].sort());
+    fillSelect('classFilter', [...classes].sort());
+    fillSelect('natFilter', [...nats].sort());
+  }
+
+  function fillSelect(id, values) {
+    const sel = document.getElementById(id);
+    for (const v of values) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    }
+  }
+
+  // --- Filtering ---
+  function applyFilters() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const dept = document.getElementById('deptFilter').value;
+    const cls = document.getElementById('classFilter').value;
+    const nat = document.getElementById('natFilter').value;
+    const yFrom = parseInt(document.getElementById('yearFrom').value, 10) || null;
+    const yTo = parseInt(document.getElementById('yearTo').value, 10) || null;
+
+    filtered = [];
+
+    for (let i = 0; i < allArtworks.length; i++) {
+      const a = allArtworks[i];
+
+      if (query && a._search.indexOf(query) === -1) continue;
+      if (dept && a['Department'] !== dept) continue;
+      if (cls && a['Classification'] !== cls) continue;
+      if (nat && a._nationality.indexOf(nat) === -1) continue;
+      if (yFrom !== null) {
+        if (a._yearMin === null || a._yearMin < yFrom) continue;
+      }
+      if (yTo !== null) {
+        if (a._yearMin === null || a._yearMin > yTo) continue;
+      }
+
+      filtered.push(a);
+    }
+
+    if (sortCol) applySortToFiltered();
+
+    currentPage = 0;
+    renderStats();
+    renderTable();
+    renderPagination();
+  }
+
+  // --- Sorting ---
+  function applySortToFiltered() {
+    const col = sortCol;
+    const asc = sortAsc;
+    filtered.sort((a, b) => {
+      let va, vb;
+      switch (col) {
+        case 'title': va = a._title; vb = b._title; break;
+        case 'artist': va = a._artist; vb = b._artist; break;
+        case 'date': va = a._yearMin || 0; vb = b._yearMin || 0;
+          return asc ? va - vb : vb - va;
+        case 'medium': va = a._medium; vb = b._medium; break;
+        case 'classification': va = a['Classification']; vb = b['Classification']; break;
+        case 'department': va = a['Department']; vb = b['Department']; break;
+        default: return 0;
+      }
+      va = (va || '').toLowerCase();
+      vb = (vb || '').toLowerCase();
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  function setSort(col) {
+    if (sortCol === col) {
+      sortAsc = !sortAsc;
+    } else {
+      sortCol = col;
+      sortAsc = true;
+    }
+    applySortToFiltered();
+    currentPage = 0;
+    renderSortIndicators();
+    renderTable();
+    renderPagination();
+  }
+
+  function renderSortIndicators() {
+    document.querySelectorAll('thead th[data-col]').forEach(th => {
+      const arrow = th.querySelector('.sort-arrow');
+      if (th.dataset.col === sortCol) {
+        arrow.textContent = sortAsc ? '\u25B2' : '\u25BC';
+      } else {
+        arrow.textContent = '';
+      }
+    });
+  }
+
+  // --- Stats ---
+  function renderStats() {
+    const total = allArtworks.length;
+    const count = filtered.length;
+    const artists = new Set();
+    let minY = Infinity, maxY = -Infinity;
+
+    for (const a of filtered) {
+      if (a._artist) artists.add(a._artist);
+      if (a._yearMin !== null) {
+        if (a._yearMin < minY) minY = a._yearMin;
+        if (a._yearMin > maxY) maxY = a._yearMin;
+      }
+    }
+
+    let text = `Showing ${count.toLocaleString()} of ${total.toLocaleString()} artworks`;
+    if (artists.size > 0) text += ` \u00B7 ${artists.size.toLocaleString()} artists`;
+    if (minY !== Infinity && maxY !== -Infinity) {
+      text += ` \u00B7 ${minY}\u2013${maxY}`;
+    }
+
+    document.getElementById('statsLine').textContent = text;
+  }
+
+  // --- Table Rendering ---
+  function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    const empty = document.getElementById('emptyState');
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    const start = currentPage * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, filtered.length);
+    const page = filtered.slice(start, end);
+
+    const frag = document.createDocumentFragment();
+    for (const a of page) {
+      const tr = document.createElement('tr');
+      tr.addEventListener('click', () => showDetail(a));
+
+      // Thumbnail
+      const tdThumb = document.createElement('td');
+      if (a['ImageURL']) {
+        const img = document.createElement('img');
+        img.className = 'thumb';
+        img.loading = 'lazy';
+        img.alt = '';
+        img.src = a['ImageURL'];
+        tdThumb.appendChild(img);
+      } else {
+        const div = document.createElement('div');
+        div.className = 'thumb-placeholder';
+        tdThumb.appendChild(div);
+      }
+      tr.appendChild(tdThumb);
+
+      // Title
+      const tdTitle = document.createElement('td');
+      tdTitle.className = 'cell-truncate';
+      tdTitle.textContent = a._title;
+      tdTitle.title = a._title;
+      tr.appendChild(tdTitle);
+
+      // Artist
+      const tdArtist = document.createElement('td');
+      tdArtist.className = 'cell-truncate';
+      tdArtist.textContent = a._artist;
+      tdArtist.title = a._artist;
+      tr.appendChild(tdArtist);
+
+      // Date
+      const tdDate = document.createElement('td');
+      tdDate.className = 'date-cell';
+      tdDate.textContent = a['Date'] || '';
+      tr.appendChild(tdDate);
+
+      // Medium
+      const tdMed = document.createElement('td');
+      tdMed.className = 'cell-truncate';
+      tdMed.textContent = a._medium;
+      tdMed.title = a._medium;
+      tr.appendChild(tdMed);
+
+      // Classification
+      const tdCls = document.createElement('td');
+      tdCls.className = 'cell-truncate';
+      tdCls.textContent = a['Classification'] || '';
+      tr.appendChild(tdCls);
+
+      // Department
+      const tdDept = document.createElement('td');
+      tdDept.className = 'cell-truncate';
+      tdDept.textContent = a['Department'] || '';
+      tr.appendChild(tdDept);
+
+      frag.appendChild(tr);
+    }
+
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
+  }
+
+  // --- Pagination ---
+  function renderPagination() {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    document.getElementById('pageInfo').textContent =
+      filtered.length > 0
+        ? `Page ${currentPage + 1} of ${totalPages.toLocaleString()}`
+        : '';
+    document.getElementById('prevBtn').disabled = currentPage === 0;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages - 1;
+    document.getElementById('pagination').style.display = filtered.length > 0 ? 'flex' : 'none';
+  }
+
+  // --- Detail Modal ---
+  function showDetail(a) {
+    const modal = document.getElementById('modal');
+    const content = document.getElementById('modalContent');
+
+    let html = '';
+
+    if (a['ImageURL']) {
+      html += `<div class="modal-image-wrapper"><img class="modal-image" src="${escHtml(a['ImageURL'])}" alt="${escHtml(a._title)}"></div>`;
+    }
+
+    const fields = [
+      ['Title', a._title],
+      ['Artist', a._artist],
+      ['Date', a['Date']],
+      ['Medium', a._medium],
+      ['Dimensions', a['Dimensions']],
+      ['Classification', a['Classification']],
+      ['Department', a['Department']],
+      ['Nationality', a._nationality],
+      ['Gender', a._gender],
+      ['Credit Line', a['CreditLine']],
+      ['Accession Number', a['AccessionNumber']],
+      ['Date Acquired', a['DateAcquired']],
+      ['Cataloged', a['Cataloged']],
+    ];
+
+    // Measurements
+    const measures = [
+      ['Height', a['Height (cm)'], 'cm'],
+      ['Width', a['Width (cm)'], 'cm'],
+      ['Depth', a['Depth (cm)'], 'cm'],
+      ['Diameter', a['Diameter (cm)'], 'cm'],
+      ['Duration', a['Duration (sec.)'], 'sec'],
+    ];
+
+    const measParts = measures
+      .filter(([, v]) => v && parseFloat(v) > 0)
+      .map(([l, v, u]) => `${l}: ${v} ${u}`);
+    if (measParts.length) {
+      fields.push(['Measurements', measParts.join(' \u00D7 ')]);
+    }
+
+    if (a['OnView']) {
+      fields.push(['On View', a['OnView'].replace(/^"|"$/g, '')]);
+    }
+
+    for (const [label, value] of fields) {
+      if (!value) continue;
+      html += `<div class="detail-field"><div class="detail-label">${escHtml(label)}</div><div class="detail-value">${escHtml(value)}</div></div>`;
+    }
+
+    if (a['URL']) {
+      html += `<a class="detail-link" href="${escHtml(a['URL'])}" target="_blank" rel="noopener">View on MoMA.org &rarr;</a>`;
+    }
+
+    content.innerHTML = html;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // --- CSV Export ---
+  function exportCSV() {
+    if (filtered.length === 0) return;
+
+    const exportCols = [
+      'Title', 'Artist', 'Date', 'Medium', 'Dimensions', 'Classification',
+      'Department', 'Nationality', 'CreditLine', 'AccessionNumber', 'ObjectID',
+      'DateAcquired', 'Cataloged', 'URL', 'ImageURL',
+      'Height (cm)', 'Width (cm)', 'Depth (cm)'
+    ];
+
+    const lines = [exportCols.join(',')];
+
+    for (const a of filtered) {
+      const row = exportCols.map(col => {
+        let val = col === 'Nationality' ? a._nationality : (a[col] || '');
+        if (val.indexOf(',') !== -1 || val.indexOf('"') !== -1 || val.indexOf('\n') !== -1) {
+          val = '"' + val.replace(/"/g, '""') + '"';
+        }
+        return val;
+      });
+      lines.push(row.join(','));
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'moma-export.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // --- Event Binding ---
+  function init() {
+    let debounceTimer;
+    document.getElementById('searchInput').addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(applyFilters, DEBOUNCE_MS);
+    });
+
+    ['deptFilter', 'classFilter', 'natFilter'].forEach(id => {
+      document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    ['yearFrom', 'yearTo'].forEach(id => {
+      document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    document.querySelectorAll('thead th[data-col]').forEach(th => {
+      th.addEventListener('click', () => setSort(th.dataset.col));
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      if (currentPage > 0) { currentPage--; renderTable(); renderPagination(); }
+    });
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+      if (currentPage < totalPages - 1) { currentPage++; renderTable(); renderPagination(); }
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', exportCSV);
+
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modal')) closeModal();
+    });
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    loadData();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>
